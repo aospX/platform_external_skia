@@ -26,7 +26,9 @@
 #include "FontHostConfiguration_android.h"
 #include <stdio.h>
 
-#define FONT_CACHE_MEMORY_BUDGET    (768 * 1024)
+// Added larger cache memory for large memory devices
+#define FONT_CACHE_MEMORY_BUDGET    (1536 * 1024)
+// #define FONT_CACHE_MEMORY_BUDGET    (768 * 1024)
 
 #ifndef SK_FONT_FILE_PREFIX
     #define SK_FONT_FILE_PREFIX          "/fonts/"
