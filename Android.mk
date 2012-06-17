@@ -328,6 +328,11 @@ endif
 
 LOCAL_LDLIBS += -lpthread
 
+ifneq ($(findstring -O3, $(TARGET_GLOBAL_CFLAGS)),)
+# Workaround for white flashing during boot
+LOCAL_CFLAGS += -O2
+endif
+
 LOCAL_MODULE:= libskia
 
 include $(BUILD_SHARED_LIBRARY)
@@ -422,6 +427,11 @@ LOCAL_C_INCLUDES += \
   frameworks/base/opengl/include
 
 LOCAL_LDLIBS += -lpthread
+
+ifneq ($(findstring -O3, $(TARGET_GLOBAL_CFLAGS)),)
+# Workaround for white flashing during boot
+LOCAL_CFLAGS += -O2
+endif
 
 LOCAL_MODULE:= libskiagpu
 LOCAL_MODULE_TAGS := optional
