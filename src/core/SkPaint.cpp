@@ -7,6 +7,8 @@
  */
 
 
+#include <new>
+
 #include "SkPaint.h"
 #include "SkColorFilter.h"
 #include "SkFontHost.h"
@@ -69,6 +71,7 @@ SkPaint::SkPaint() {
     fTextEncoding = kUTF8_TextEncoding;
     fHinting    = SkPaintDefaults_Hinting;
 #ifdef SK_BUILD_FOR_ANDROID
+    new(&fTextLocale) SkString();
     fGenerationID = 0;
 #endif
 }
@@ -85,6 +88,9 @@ SkPaint::SkPaint(const SkPaint& src) {
     SkSafeRef(fRasterizer);
     SkSafeRef(fLooper);
     SkSafeRef(fImageFilter);
+#ifdef SK_BUILD_FOR_ANDROID
+    new(&fTextLocale) SkString(src.fTextLocale);
+#endif
 }
 
 SkPaint::~SkPaint() {
@@ -123,10 +129,12 @@ SkPaint& SkPaint::operator=(const SkPaint& src) {
     SkSafeUnref(fImageFilter);
 
 #ifdef SK_BUILD_FOR_ANDROID
+    fTextLocale.~SkString();
     uint32_t oldGenerationID = fGenerationID;
 #endif
     memcpy(this, &src, sizeof(src));
 #ifdef SK_BUILD_FOR_ANDROID
+    new(&fTextLocale) SkString(src.fTextLocale);
     fGenerationID = oldGenerationID + 1;
 #endif
 
@@ -357,6 +365,15 @@ void SkPaint::setTextEncoding(TextEncoding encoding) {
     }
 }
 
+#ifdef SK_BUILD_FOR_ANDROID
+void SkPaint::setTextLocale(const SkString& locale) {
+    if(!fTextLocale.equals(locale)) {
+        fTextLocale.set(locale);
+        GEN_ID_INC;
+    }
+}
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 
 SkTypeface* SkPaint::setTypeface(SkTypeface* font) {
@@ -423,6 +440,37 @@ const void* SkPaint::findImage(const SkGlyph& glyph) {
     SkGlyphCache::AttachCache(cache);
     return image;
 }
+
+int SkPaint::utfToGlyphs(const void* textData, TextEncoding encoding,
+                         size_t byteLength, uint16_t glyphs[]) const {
+
+    SkAutoGlyphCache autoCache(*this, NULL);
+    SkGlyphCache* cache = autoCache.getCache();
+    
+    const char* text = (const char*) textData;
+    const char* stop = text + byteLength;
+    uint16_t* gptr = glyphs;
+    
+    switch (encoding) {
+        case SkPaint::kUTF8_TextEncoding:
+            while (text < stop) {
+                *gptr++ = cache->unicharToGlyph(SkUTF8_NextUnichar(&text));
+            }
+            break;
+        case SkPaint::kUTF16_TextEncoding: {
+            const uint16_t* text16 = (const uint16_t*)text;
+            const uint16_t* stop16 = (const uint16_t*)stop;
+            while (text16 < stop16) {
+                *gptr++ = cache->unicharToGlyph(SkUTF16_NextUnichar(&text16));
+            }
+            break;
+        }
+        default:
+            SkDEBUGFAIL("unknown text encoding");
+    }
+    return gptr - glyphs;
+}
+
 #endif
 
 int SkPaint::textToGlyphs(const void* textData, size_t byteLength,
@@ -1399,7 +1447,8 @@ void SkScalerContext::MakeRec(const SkPaint& paint,
                               const SkMatrix* deviceMatrix, Rec* rec) {
     SkASSERT(deviceMatrix == NULL || !deviceMatrix->hasPerspective());
 
-    rec->fOrigFontID = SkTypeface::UniqueID(paint.getTypeface());
+    SkTypeface* typeface = paint.getTypeface();
+    rec->fOrigFontID = SkTypeface::UniqueID(typeface);
     rec->fFontID = rec->fOrigFontID;
     rec->fTextSize = paint.getTextSize();
     rec->fPreScaleX = paint.getTextScaleX();
@@ -1420,10 +1469,21 @@ void SkScalerContext::MakeRec(const SkPaint& paint,
 
     unsigned flags = 0;
 
-    if (paint.isFakeBoldText()) {
 #ifdef SK_USE_FREETYPE_EMBOLDEN
+    // It is possible that the SkTypeface used to draw glyphs has
+    // different properties than the SkTypeface set in the SkPaint.
+    // If we are asked to render bold text with a bold font, and are
+    // forced to fall back to a font with normal weight for some
+    // glyphs, we need to use fake bold to render those glyphs. In
+    // order to do that, we set SkScalerContext's "embolden" flag
+    // here if we are trying to draw bold text via any means, and
+    // ignore it at the glyph outline generation stage if the font
+    // actually being used is already bold.
+    if (paint.isFakeBoldText() || (typeface && typeface->isBold())) {
         flags |= SkScalerContext::kEmbolden_Flag;
+    }
 #else
+    if (paint.isFakeBoldText()) {
         SkScalar fakeBoldScale = SkScalarInterpFunc(paint.getTextSize(),
                                                     kStdFakeBoldInterpKeys,
                                                     kStdFakeBoldInterpValues,
@@ -1436,8 +1496,8 @@ void SkScalerContext::MakeRec(const SkPaint& paint,
         } else {
             strokeWidth += extra;
         }
-#endif
     }
+#endif
 
     if (paint.isDevKernText()) {
         flags |= SkScalerContext::kDevKernText_Flag;
@@ -2018,9 +2078,12 @@ SkTextToPathIter::SkTextToPathIter( const char text[], size_t length,
     }
 
     // can't use our canonical size if we need to apply patheffects/strokes
-    if (fPaint.isLinearText() && !applyStrokeAndPathEffects) {
+    if (fPaint.getPathEffect() == NULL) {
         fPaint.setTextSize(SkIntToScalar(SkPaint::kCanonicalTextSizeForPaths));
         fScale = paint.getTextSize() / SkPaint::kCanonicalTextSizeForPaths;
+        if (has_thick_frame(fPaint)) {
+            fPaint.setStrokeWidth(SkScalarDiv(fPaint.getStrokeWidth(), fScale));
+        }
     } else {
         fScale = SK_Scalar1;
     }
