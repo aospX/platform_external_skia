@@ -104,6 +104,7 @@ LOCAL_SRC_FILES:= \
 	src/core/SkGeometry.cpp \
 	src/core/SkGlyphCache.cpp \
 	src/core/SkGraphics.cpp \
+	src/core/SkLanguage.cpp \
 	src/core/SkLineClipper.cpp \
 	src/core/SkMallocPixelRef.cpp \
 	src/core/SkMask.cpp \
