@@ -337,10 +337,7 @@ endif
 
 LOCAL_LDLIBS += -lpthread
 
-ifneq ($(findstring -O3, $(TARGET_GLOBAL_CFLAGS)),)
-# Workaround for white flashing during boot
-LOCAL_CFLAGS += -O2
-endif
+LOCAL_CFLAGS += -O3 -fno-inline-functions
 
 LOCAL_MODULE:= libskia
 
@@ -437,10 +434,7 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_LDLIBS += -lpthread
 
-ifneq ($(findstring -O3, $(TARGET_GLOBAL_CFLAGS)),)
-# Workaround for white flashing during boot
-LOCAL_CFLAGS += -O2
-endif
+LOCAL_CFLAGS += -O3
 
 LOCAL_MODULE:= libskiagpu
 LOCAL_MODULE_TAGS := optional
