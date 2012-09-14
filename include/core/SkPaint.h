@@ -15,9 +15,7 @@
 #include "SkXfermode.h"
 #include "SkString.h"
 
-#ifdef SK_BUILD_FOR_ANDROID
-#include "SkLanguage.h"
-#endif
+#include <pthread.h>
 
 class SkAutoGlyphCache;
 class SkColorFilter;
@@ -40,6 +38,25 @@ typedef const SkGlyph& (*SkDrawCacheProc)(SkGlyphCache*, const char**,
                                            SkFixed x, SkFixed y);
 
 typedef const SkGlyph& (*SkMeasureCacheProc)(SkGlyphCache*, const char**);
+
+class SkTextLocale {
+    public:
+        SkTextLocale();
+
+    SkString s;
+    SkTextLocale *next;
+};
+
+class SkTextLocales {
+public:
+    SkTextLocales();
+    SkTextLocale * setTextLocale( const SkString& locale );
+    SkString& getTextLocale( SkTextLocale * t );
+
+private:
+    SkTextLocale * LocaleArray;
+    pthread_mutex_t update_mutex;
+};
 
 /** \class SkPaint
 
@@ -663,17 +680,12 @@ public:
     /** Return the paint's text locale value.
         @return the paint's text locale value used for drawing text.
     */
-    const SkString& getTextLocale() const { return fTextLocale; }
+    const SkString& getTextLocale();
 
     /** Set the paint's text locale.
         @param locale set the paint's locale value for drawing text.
     */
     void    setTextLocale(const SkString& locale);
-
-    /** Set the paint's language value used for drawing text.
-        @param language set the paint's language value for drawing text.
-    */
-    void setLanguage(const SkLanguage& language);
 #endif
 
     /** Return the paint's text size.
@@ -893,6 +905,8 @@ public:
     bool nothingToDraw() const;
 
 private:
+    //Be noted to update SkPaint::SkPaint(const SkPaint& src) copy
+    //constructor when struture is changed for fast path!
     SkTypeface*     fTypeface;
     SkScalar        fTextSize;
     SkScalar        fTextScaleX;
@@ -918,7 +932,7 @@ private:
     unsigned        fTextEncoding : 2;  // 3 values
     unsigned        fHinting : 2;
 #ifdef SK_BUILD_FOR_ANDROID
-    SkString        fTextLocale;
+    SkTextLocale*   fpTextLocale;
 #endif
 
     SkDrawCacheProc    getDrawCacheProc() const;

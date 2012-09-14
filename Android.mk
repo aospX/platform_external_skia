@@ -104,7 +104,6 @@ LOCAL_SRC_FILES:= \
 	src/core/SkGeometry.cpp \
 	src/core/SkGlyphCache.cpp \
 	src/core/SkGraphics.cpp \
-	src/core/SkLanguage.cpp \
 	src/core/SkLineClipper.cpp \
 	src/core/SkMallocPixelRef.cpp \
 	src/core/SkMask.cpp \
@@ -313,6 +312,10 @@ LOCAL_STATIC_LIBRARIES := \
 	libgif \
 	libwebp-decode \
 	libwebp-encode
+
+ifeq ($(TARGET_USE_KRAIT_BIONIC_OPTIMIZATION),true)
+	LOCAL_CFLAGS += -DKRAIT_OPTIMIZATION
+endif
 
 LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/src/core \
